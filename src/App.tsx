@@ -16,8 +16,8 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db, googleProvider, signInWithPopup } from './firebase';
-import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { auth, db, signInAnonymously } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, 
   addDoc, 
@@ -94,8 +94,16 @@ export default function App() {
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setIsAuthReady(true);
+      if (u) {
+        setUser(u);
+        setIsAuthReady(true);
+      } else {
+        // Auto sign in anonymously if not logged in
+        signInAnonymously(auth).catch(err => {
+          console.error("Anonymous sign-in failed:", err);
+          setIsAuthReady(true); // Still set ready so we can show error boundary if needed
+        });
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -125,16 +133,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user]);
-
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Login failed:", error);
-    }
-  };
-
-  const handleLogout = () => signOut(auth);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,29 +226,12 @@ export default function App() {
     }
   };
 
-  if (!isAuthReady) {
+  if (!isAuthReady || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100">
-          <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Printer className="w-10 h-10 text-blue-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">错题举一反三打印机</h1>
-          <p className="text-slate-500 mb-8">拍照识别错题，AI 生成相似题目及易错点解析，支持错题本管理与 PDF 打印。</p>
-          <button 
-            onClick={handleLogin}
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
-          >
-            使用 Google 账号登录
-          </button>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
+          <p className="text-slate-500 font-medium">正在初始化应用...</p>
         </div>
       </div>
     );
@@ -268,8 +249,7 @@ export default function App() {
             <span className="font-bold text-lg tracking-tight">错题打印机</span>
           </div>
           <div className="flex items-center gap-3">
-            <img src={user.photoURL || ''} alt="avatar" className="w-8 h-8 rounded-full border border-slate-200" />
-            <button onClick={handleLogout} className="text-xs text-slate-500 hover:text-red-500 transition-colors">退出</button>
+            <div className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">访客模式</div>
           </div>
         </header>
 
